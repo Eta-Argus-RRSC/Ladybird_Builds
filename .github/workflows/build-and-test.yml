@@ -56,6 +56,29 @@ jobs:
           build_preset: ${{ inputs.build_preset }}
           clang_plugins: ${{ inputs.clang_plugins }}
           vcpkg_cache_sas: ${{ secrets.VCPKG_CACHE_SAS }}
+           
+      - name: Package Windows bundle
+        if: ${{ inputs.os_name == 'Windows' }}
+        working-directory: ${{ github.workspace }}
+        shell: pwsh
+        run: |
+          cmake --install Build --prefix Install
+          $qtBin = (Get-ChildItem -Path Build -Filter "windeployqt.exe" -Recurse | Select-Object -First 1).DirectoryName
+          if ($qtBin) {
+            & "$qtBin\windeployqt.exe" --release --no-translations "Install\bin\Ladybird.exe"
+          }
+          Get-ChildItem -Path Build -Filter "*.dll" -Recurse | Where-Object { $_.FullName -notmatch "\\Install\\" } | Copy-Item -Destination "Install\bin\" -Force
+
+      - name: Upload Windows bundle
+        if: ${{ inputs.os_name == 'Windows' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ladybird-windows-${{ inputs.arch }}-${{ inputs.build_preset }}
+          path: Install/
+          retention-days: 7
+          if-no-files-found: error
+
+      
 
       # The macOS AX tests run against this bundle on another machine (see macos-accessibility-tests.yml). So the
       # bundle has to be self-contained. To make it self-contained, this script copies the libraries in, Qt included,
